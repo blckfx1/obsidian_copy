@@ -130,3 +130,6 @@ async function createNewNote() {
 
 // Make createNewNote available globally for the "New Note" button
 window.createNewNote = createNewNote;
+document.getElementById('new-note-btn')?.addEventListener('click', createNewNote);
+
+
