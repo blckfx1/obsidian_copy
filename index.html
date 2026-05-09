@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Trilium · three-pane wiki</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #0a0c10;
+      font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, 'Roboto Mono', monospace;
+      color: #e3e6eb;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* DARK DESIGN SYSTEM */
+    :root {
+      --bg-deep: #0f1117;
+      --bg-sidebar: #16181f;
+      --bg-pane: #1a1d26;
+      --border-glow: #2a2f3a;
+      --text-primary: #eceff4;
+      --text-secondary: #bdc1cc;
+      --accent: #5f7f9e;
+      --accent-light: #7c9ec2;
+      --danger: #c96f6f;
+      --success: #6f9e7c;
+    }
+
+    /* main layout grid */
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    /* header bar */
+    .header {
+      background: var(--bg-deep);
+      border-bottom: 1px solid var(--border-glow);
+      padding: 0.8rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+      z-index: 10;
+    }
+
+    .logo {
+      font-weight: 600;
+      letter-spacing: -0.3px;
+      background: linear-gradient(135deg, #cdd9f4, #9fb7d4);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      font-size: 1.3rem;
+    }
+
+    .search-area {
+      position: relative;
+      flex: 1;
+      max-width: 380px;
+    }
+
+    .search-input {
+      width: 100%;
+      background: #21242e;
+      border: 1px solid var(--border-glow);
+      border-radius: 28px;
+      padding: 0.55rem 1rem;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      transition: 0.2s;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(95, 127, 158, 0.3);
+    }
+
+    /* search dropdown */
+    .search-results {
+      position: absolute;
+      top: 44px;
+      left: 0;
+      right: 0;
+      background: #1e212b;
+      border: 1px solid var(--border-glow);
+      border-radius: 14px;
+      max-height: 280px;
+      overflow-y: auto;
+      z-index: 100;
+      backdrop-filter: blur(6px);
+      display: none;
+    }
+
+    .search-results.show {
+      display: block;
+    }
+
+    .search-result-item {
+      padding: 0.7rem 1rem;
+      border-bottom: 1px solid #2a2e3a;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: 0.1s;
+    }
+
+    .search-result-item:hover {
+      background: #2d3240;
+    }
+
+    /* main body: sidebar + three panes */
+    .workspace {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* left sidebar – note manager */
+    .sidebar {
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border-glow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 1rem;
+      border-bottom: 1px solid #232731;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .new-note-btn {
+      background: var(--accent);
+      border: none;
+      color: white;
+      padding: 0.3rem 0.9rem;
+      border-radius: 24px;
+      font-weight: 500;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: 0.2s;
+    }
+
+    .new-note-btn:hover {
+      background: var(--accent-light);
+    }
+
+    .notes-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.6rem 0;
+    }
+
+    .note-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 1rem;
+      margin: 0.2rem 0.6rem;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: 0.1s;
+      background: transparent;
+    }
+
+    .note-item:hover {
+      background: #242833;
+    }
+
+    .note-title {
+      font-size: 0.9rem;
+      font-weight: 480;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1;
+    }
+
+    .note-actions {
+      display: flex;
+      gap: 6px;
+      opacity: 0.6;
+    }
+
+    .note-actions span {
+      cursor: pointer;
+      font-size: 0.9rem;
+      padding: 0 2px;
+    }
+
+    .note-actions span:hover {
+      opacity: 1;
+      color: var(--accent-light);
+    }
+
+    /* three pane grid */
+    .panes-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1px;
+      background: var(--border-glow);
+      overflow: hidden;
+    }
+
+    .pane {
+      background: var(--bg-pane);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: all 0.1s;
+    }
+
+    .pane-header {
+      padding: 0.7rem;
+      background: #141821;
+      border-bottom: 1px solid #242a34;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pane-title-input {
+      background: #0f1119;
+      border: 1px solid #2e3542;
+      color: var(--text-primary);
+      border-radius: 8px;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      width: 100%;
+      font-family: inherit;
+    }
+
+    .pane-title-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .textarea-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 0.6rem;
+    }
+
+    .note-textarea {
+      width: 100%;
+      background: #12161f;
+      border: 1px solid #2a2f3c;
+      border-radius: 14px;
+      color: #eef2ff;
+      padding: 0.8rem;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.85rem;
+      resize: vertical;
+      margin-bottom: 0.7rem;
+      flex: 2;
+      min-height: 130px;
+    }
+
+    .note-textarea:focus {
+      border-color: var(--accent);
+      outline: none;
+    }
+
+    .preview-area {
+      background: #10131c;
+      border-radius: 14px;
+      padding: 0.75rem;
+      border: 1px solid #252b36;
+      font-size: 0.8rem;
+      flex: 1.2;
+      overflow-y: auto;
+      color: #cbd5e6;
+    }
+
+    .preview-area .wikilink {
+      color: #8db5e0;
+      background: #1e2a3a;
+      border-radius: 14px;
+      padding: 0 5px;
+      cursor: pointer;
+      font-weight: 500;
+      text-decoration: none;
+      display: inline-block;
+      transition: 0.1s;
+    }
+
+    .preview-area .wikilink:hover {
+      background: #2f4057;
+      color: white;
+    }
+
+    .empty-pane {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #6c7486;
+      font-style: italic;
+    }
+
+    /* scroll */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #191e26;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #3a4152;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="app">
+  <div class="header">
+    <div class="logo">◈ TRILIUM · triple wiki</div>
+    <div class="search-area">
+      <input type="text" class="search-input" id="globalSearch" placeholder="🔍 Search titles & content...">
+      <div id="searchDropdown" class="search-results"></div>
+    </div>
+    <div style="font-size: 12px; opacity:0.5;">⚡ auto-save · [[wiki-links]]</div>
+  </div>
+
+  <div class="workspace">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <strong>📒 NOTES</strong>
+        <button class="new-note-btn" id="newNoteBtn">+ New note</button>
+      </div>
+      <div id="notesListContainer" class="notes-list">
+        <!-- dynamic note list -->
+      </div>
+    </aside>
+
+    <div class="panes-container" id="panesContainer">
+      <!-- three panes: 0,1,2 -->
+      <div class="pane" data-pane-index="0">
+        <div class="pane-header">
+          <input type="text" class="pane-title-input" placeholder="Note title" id="paneTitle0">
+        </div>
+        <div class="textarea-wrapper">
+          <textarea class="note-textarea" id="paneContent0" placeholder="Write your note here... use [[Wiki Link]] syntax"></textarea>
+          <div class="preview-area" id="panePreview0">✨ Live preview: click [[links]] to open/auto-create</div>
+        </div>
+      </div>
+      <div class="pane" data-pane-index="1">
+        <div class="pane-header">
+          <input type="text" class="pane-title-input" placeholder="Note title" id="paneTitle1">
+        </div>
+        <div class="textarea-wrapper">
+          <textarea class="note-textarea" id="paneContent1" placeholder="Second pane"></textarea>
+          <div class="preview-area" id="panePreview1">✨ Live preview: click [[links]] to open/auto-create</div>
+        </div>
+      </div>
+      <div class="pane" data-pane-index="2">
+        <div class="pane-header">
+          <input type="text" class="pane-title-input" placeholder="Note title" id="paneTitle2">
+        </div>
+        <div class="textarea-wrapper">
+          <textarea class="note-textarea" id="paneContent2" placeholder="Third pane"></textarea>
+          <div class="preview-area" id="panePreview2">✨ Live preview: click [[links]] to open/auto-create</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ---------- INDEXEDDB WRAPPER ----------
+  const DB_NAME = 'TriliumClone';
+  const STORE_NAME = 'notes';
+  let db = null;
+
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, 1);
+      request.onupgradeneeded = (e) => {
+        const dbRef = e.target.result;
+        if (!dbRef.objectStoreNames.contains(STORE_NAME)) {
+          const store = dbRef.createObjectStore(STORE_NAME, { keyPath: 'id' });
+          store.createIndex('title', 'title', { unique: true });
+          store.createIndex('updatedAt', 'updatedAt');
+        }
+      };
+      request.onsuccess = () => {
+        db = request.result;
+        resolve(db);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function getAllNotes() {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const notes = await store.getAll();
+    return notes.sort((a,b) => b.updatedAt - a.updatedAt);
+  }
+
+  async function getNoteById(id) {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    return tx.objectStore(STORE_NAME).get(id);
+  }
+
+  async function getNoteByTitle(title) {
+    const all = await getAllNotes();
+    return all.find(n => n.title === title);
+  }
+
+  async function saveNote(note) {
+    note.updatedAt = Date.now();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    await store.put(note);
+    return note;
+  }
+
+  async function deleteNote(id) {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).delete(id);
+    return tx.done;
+  }
+
+  // helper: create default note if empty
+  async function ensureDefaultNotes() {
+    const notes = await getAllNotes();
+    if (notes.length === 0) {
+      const defaultNote = {
+        id: 'welcome-' + Date.now(),
+        title: 'Welcome',
+        content: '# Hello\nThis is your triple-pane wiki.\n\nTry [[NewNote]] or [[Project Ideas]].\n\n- Click links to auto-create.\n- Edit any pane, auto-saved.',
+        updatedAt: Date.now()
+      };
+      await saveNote(defaultNote);
+    }
+  }
+
+  // -------- app state --------
+  let panes = [
+    { noteId: null, lastUsed: Date.now() },   // pane 0
+    { noteId: null, lastUsed: Date.now() },   // pane 1
+    { noteId: null, lastUsed: Date.now() }    // pane 2
+  ];
+
+  let allNotesCache = [];  // for sidebar & title map
+  let debounceTimers = [null, null, null];
+
+  // helpers
+  function updateCache() { return getAllNotes().then(notes => { allNotesCache = notes; return notes; }); }
+
+  // refresh sidebar UI
+  async function renderSidebar() {
+    const notes = await updateCache();
+    const container = document.getElementById('notesListContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    notes.forEach(note => {
+      const div = document.createElement('div');
+      div.className = 'note-item';
+      div.innerHTML = `
+        <span class="note-title" data-id="${note.id}" data-title="${escapeHtml(note.title)}">${escapeHtml(note.title)}</span>
+        <div class="note-actions">
+          <span class="rename-note" data-id="${note.id}" data-title="${escapeHtml(note.title)}">✏️</span>
+          <span class="delete-note" data-id="${note.id}" data-title="${escapeHtml(note.title)}">🗑️</span>
+        </div>
+      `;
+      const titleSpan = div.querySelector('.note-title');
+      titleSpan.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openNoteInAnyPane(note.id);
+      });
+      const renameBtn = div.querySelector('.rename-note');
+      renameBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const newTitle = prompt('Rename note:', note.title);
+        if (newTitle && newTitle.trim() && newTitle !== note.title) {
+          renameNoteAndUpdateLinks(note.id, newTitle.trim());
+        }
+      });
+      const deleteBtn = div.querySelector('.delete-note');
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (confirm(`Delete "${note.title}" permanently?`)) {
+          deleteNoteAndCleanPanes(note.id);
+        }
+      });
+      container.appendChild(div);
+    });
+  }
+
+  // rename with full wiki-link replacement in all notes
+  async function renameNoteAndUpdateLinks(noteId, newTitle) {
+    const oldNote = await getNoteById(noteId);
+    if (!oldNote) return;
+    const oldTitle = oldNote.title;
+    if (oldTitle === newTitle) return;
+    oldNote.title = newTitle;
+    await saveNote(oldNote);
+    // update all references [[oldTitle]] -> [[newTitle]] in all notes
+    const allNotes = await getAllNotes();
+    for (let note of allNotes) {
+      if (note.id === noteId) continue;
+      let newContent = note.content;
+      const regex = new RegExp(`\\[\\[${escapeRegex(oldTitle)}\\]\\]`, 'g');
+      if (regex.test(newContent)) {
+        newContent = newContent.replace(regex, `[[${newTitle}]]`);
+        if (newContent !== note.content) {
+          note.content = newContent;
+          await saveNote(note);
+        }
+      }
+    }
+    // update any open pane that holds this note
+    for (let i=0; i<panes.length; i++) {
+      if (panes[i].noteId === noteId) {
+        const paneTitleInput = document.getElementById(`paneTitle${i}`);
+        if (paneTitleInput) paneTitleInput.value = newTitle;
+        // refresh preview
+        const textarea = document.getElementById(`paneContent${i}`);
+        if (textarea) refreshPreviewForPane(i, textarea.value);
+      }
+    }
+    await renderSidebar();
+    // also refresh all panes preview for cross-links display
+    for (let i=0; i<panes.length; i++) {
+      if (panes[i].noteId) {
+        const noteCurr = await getNoteById(panes[i].noteId);
+        if (noteCurr) refreshPreviewForPane(i, noteCurr.content);
+      }
+    }
+  }
+
+  function escapeRegex(str) { return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+  async function deleteNoteAndCleanPanes(noteId) {
+    await deleteNote(noteId);
+    for (let i=0; i<panes.length; i++) {
+      if (panes[i].noteId === noteId) {
+        panes[i].noteId = null;
+        clearPaneUI(i);
+      }
+    }
+    await renderSidebar();
+  }
+
+  function clearPaneUI(paneIdx) {
+    const titleInput = document.getElementById(`paneTitle${paneIdx}`);
+    const textarea = document.getElementById(`paneContent${paneIdx}`);
+    const preview = document.getElementById(`panePreview${paneIdx}`);
+    if (titleInput) titleInput.value = '';
+    if (textarea) textarea.value = '';
+    if (preview) preview.innerHTML = '✨ Empty pane — select a note from sidebar or create new.';
+  }
+
+  // open note logic: if note already open -> focus that pane. else use empty or LRU
+  async function openNoteInAnyPane(noteId) {
+    const existingPane = panes.findIndex(p => p.noteId === noteId);
+    if (existingPane !== -1) {
+      // already open, refresh UI and mark last used
+      panes[existingPane].lastUsed = Date.now();
+      await loadNoteToPane(existingPane, noteId);
+      return;
+    }
+    const emptySlot = panes.findIndex(p => p.noteId === null);
+    if (emptySlot !== -1) {
+      panes[emptySlot].lastUsed = Date.now();
+      await loadNoteToPane(emptySlot, noteId);
+      return;
+    }
+    // replace least recently used
+    let lruIndex = 0;
+    for (let i=1; i<panes.length; i++) {
+      if (panes[i].lastUsed < panes[lruIndex].lastUsed) lruIndex = i;
+    }
+    panes[lruIndex].lastUsed = Date.now();
+    await loadNoteToPane(lruIndex, noteId);
+  }
+
+  async function loadNoteToPane(paneIdx, noteId) {
+    const note = await getNoteById(noteId);
+    if (!note) return;
+    panes[paneIdx].noteId = noteId;
+    panes[paneIdx].lastUsed = Date.now();
+    const titleInput = document.getElementById(`paneTitle${paneIdx}`);
+    const textarea = document.getElementById(`paneContent${paneIdx}`);
+    if (titleInput) titleInput.value = note.title;
+    if (textarea) textarea.value = note.content;
+    refreshPreviewForPane(paneIdx, note.content);
+    // attach unsaved listeners (debounced)
+  }
+
+  function refreshPreviewForPane(paneIdx, rawContent) {
+    const previewDiv = document.getElementById(`panePreview${paneIdx}`);
+    if (!previewDiv) return;
+    const rendered = renderWikiLinksAsHtml(rawContent || '');
+    previewDiv.innerHTML = rendered;
+    // attach click listeners to .wikilink elements
+    previewDiv.querySelectorAll('.wikilink').forEach(linkSpan => {
+      const targetTitle = linkSpan.getAttribute('data-title');
+      if (targetTitle) {
+        linkSpan.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openOrCreateNoteByTitle(targetTitle);
+        });
+      }
+    });
+  }
+
+  async function openOrCreateNoteByTitle(title) {
+    let existingNote = await getNoteByTitle(title);
+    if (!existingNote) {
+      // create new note
+      const newId = `${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
+      const newNote = {
+        id: newId,
+        title: title,
+        content: `# ${title}\n\nStart writing...`,
+        updatedAt: Date.now()
+      };
+      await saveNote(newNote);
+      existingNote = newNote;
+      await renderSidebar();
+    }
+    await openNoteInAnyPane(existingNote.id);
+  }
+
+  function renderWikiLinksAsHtml(content) {
+    if (!content) return '📄 no content yet.';
+    let escaped = escapeHtml(content);
+    // replace [[...]] with clickable spans
+    const linkRegex = /\[\[(.*?)\]\]/g;
+    const withLinks = escaped.replace(linkRegex, (match, linkText) => {
+      const clean = escapeHtml(linkText);
+      return `<span class="wikilink" data-title="${clean}">[[${clean}]]</span>`;
+    });
+    // line breaks for readability
+    return withLinks.replace(/\n/g, '<br>');
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+      if (m === '&') return '&amp;';
+      if (m === '<') return '&lt;';
+      if (m === '>') return '&gt;';
+      return m;
+    }).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, function(c) {
+      return c;
+    });
+  }
+
+  // auto-save from pane content
+  function setupPaneAutoSave(paneIdx) {
+    const textarea = document.getElementById(`paneContent${paneIdx}`);
+    const titleInput = document.getElementById(`paneTitle${paneIdx}`);
+    if (!textarea) return;
+
+    const saveCurrentPane = async () => {
+      const noteId = panes[paneIdx].noteId;
+      if (!noteId) return;
+      const newContent = textarea.value;
+      const newTitleRaw = titleInput ? titleInput.value.trim() : null;
+      const note = await getNoteById(noteId);
+      if (!note) return;
+      let titleChanged = false;
+      if (newTitleRaw && newTitleRaw !== note.title) {
+        await renameNoteAndUpdateLinks(noteId, newTitleRaw);
+        titleChanged = true;
+      }
+      if (note.content !== newContent) {
+        note.content = newContent;
+        await saveNote(note);
+      }
+      if (!titleChanged) {
+        // just refresh preview only if content changed
+        refreshPreviewForPane(paneIdx, newContent);
+      }
+      await renderSidebar(); // update titles if rename elsewhere
+    };
+
+    const debouncedSave = debounce(() => saveCurrentPane(), 500);
+    textarea.addEventListener('input', () => {
+      debouncedSave();
+      // immediate preview update
+      refreshPreviewForPane(paneIdx, textarea.value);
+    });
+    if (titleInput) {
+      titleInput.addEventListener('change', async () => {
+        const noteId = panes[paneIdx].noteId;
+        if (noteId) {
+          const newTitle = titleInput.value.trim();
+          if (newTitle) {
+            const note = await getNoteById(noteId);
+            if (note && note.title !== newTitle) {
+              await renameNoteAndUpdateLinks(noteId, newTitle);
+              await renderSidebar();
+            }
+          }
+        }
+      });
+    }
+  }
+
+  function debounce(fn, delay) {
+    let timer;
+    return function(...args) {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), delay);
+    };
+  }
+
+  // search feature (full-text over notes)
+  async function performSearch(query) {
+    if (!query.trim()) {
+      document.getElementById('searchDropdown').classList.remove('show');
+      return;
+    }
+    const notes = await getAllNotes();
+    const lowerQuery = query.toLowerCase();
+    const results = notes.filter(n => 
+      n.title.toLowerCase().includes(lowerQuery) || 
+      n.content.toLowerCase().includes(lowerQuery)
+    );
+    const dropdown = document.getElementById('searchDropdown');
+    if (results.length === 0) {
+      dropdown.innerHTML = '<div class="search-result-item">🔍 No matching notes</div>';
+    } else {
+      dropdown.innerHTML = results.map(n => `<div class="search-result-item" data-id="${n.id}" data-title="${escapeHtml(n.title)}">📄 ${escapeHtml(n.title)}</div>`).join('');
+      dropdown.querySelectorAll('.search-result-item').forEach(el => {
+        const id = el.getAttribute('data-id');
+        if (id) {
+          el.addEventListener('click', () => openNoteInAnyPane(id));
+        }
+      });
+    }
+    dropdown.classList.add('show');
+  }
+
+  // new note creation
+  async function createNewNote() {
+    const baseTitle = 'Untitled';
+    let counter = 1;
+    let finalTitle = baseTitle;
+    const existing = await getAllNotes();
+    while (existing.some(n => n.title === finalTitle)) {
+      finalTitle = `${baseTitle} ${counter++}`;
+    }
+    const newId = `${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
+    const newNote = {
+      id: newId,
+      title: finalTitle,
+      content: `# ${finalTitle}\n\nStart writing. Use [[wiki links]] to connect ideas.`,
+      updatedAt: Date.now()
+    };
+    await saveNote(newNote);
+    await renderSidebar();
+    await openNoteInAnyPane(newId);
+  }
+
+  // initial load & sync panes from cache + attach global events
+  async function initApp() {
+    await openDB();
+    await ensureDefaultNotes();
+    await renderSidebar();
+    // load last used notes? open first three notes if exist, else default demo
+    const notes = await getAllNotes();
+    for (let i = 0; i < Math.min(3, notes.length); i++) {
+      await loadNoteToPane(i, notes[i].id);
+    }
+    for (let i = 0; i < 3; i++) {
+      setupPaneAutoSave(i);
+    }
+    // search listener
+    const searchInput = document.getElementById('globalSearch');
+    searchInput.addEventListener('input', (e) => {
+      performSearch(e.target.value);
+    });
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.search-area')) {
+        document.getElementById('searchDropdown').classList.remove('show');
+      }
+    });
+    document.getElementById('newNoteBtn').addEventListener('click', () => createNewNote());
+    // also update lastUsed on pane focus (textarea click)
+    for (let i=0;i<3;i++) {
+      const textarea = document.getElementById(`paneContent${i}`);
+      textarea?.addEventListener('focus', () => { panes[i].lastUsed = Date.now(); });
+    }
+  }
+
+  // helper to refresh all previews on demand 
+  window.addEventListener('load', initApp);
+</script>
+</body>
+</html>
