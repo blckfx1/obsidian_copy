@@ -6,7 +6,14 @@ let activePaneNotes = [null, null, null];
 
 // Wait for page to load
 window.addEventListener('DOMContentLoaded', async () => {
-  await initDB();
+    // ... existing code (database init, loading notes, etc.) ...
+    
+    // ✅ Paste this at the bottom, just before the final });
+    const newNoteBtn = document.getElementById('new-note-btn');
+    if (newNoteBtn) {
+        newNoteBtn.addEventListener('click', createNewNote);
+    }
+});
   
   // Load all notes into left sidebar
   await refreshNoteList();
@@ -25,6 +32,23 @@ window.addEventListener('DOMContentLoaded', async () => {
     await openNoteInPane(i, notes[i].id);
   }
 });
+
+// Create a new note
+async function createNewNote() {
+    const newNote = {
+        id: Date.now().toString(),
+        title: 'Untitled',
+        content: '',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+    };
+    await saveNote(newNote);
+    await refreshNoteList();
+    // Optional: open in first pane
+    if (typeof openNoteInPane === 'function') {
+        await openNoteInPane(0, newNote.id);
+    }
+}
 
 // ----- Helper: refresh left sidebar list -----
 async function refreshNoteList() {
