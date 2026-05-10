@@ -179,6 +179,10 @@
             for (let i = 0; i < 3 && i < notes.length; i++) {
                 await openNoteInPane(i, notes[i].id);
             }
+            const newNoteBtn = document.getElementById('new-note-btn');
+            if (newNoteBtn) {
+                newNoteBtn.addEventListener('click', createNewNote);
+    }
         });
 
         async function refreshNoteList() {
