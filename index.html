@@ -162,71 +162,123 @@
         }
     </style>
     <script type="module">
-        import { initDB, getAllNotes, getNote, saveNote, deleteNote } from './db.js';
+     import { initDB, getAllNotes, getNote, saveNote, deleteNote } from './db.js';
 
-        let activePaneNotes = [null, null, null];
+     let activePaneNotes = [null, null, null];
+ 
+     window.addEventListener('DOMContentLoaded', async () => {
+        await initDB();
+        await refreshNoteList();
 
-        window.addEventListener('DOMContentLoaded', async () => {
-            await initDB();
+        const notes = await getAllNotes();
+        if (notes.length === 0) {
+            const welcome = { 
+                id: Date.now().toString(), 
+                title: 'Welcome', 
+                content: '# Hello\n\nStart writing here.' 
+            };
+            await saveNote(welcome);
             await refreshNoteList();
-            const notes = await getAllNotes();
-            if (notes.length === 0) {
-                const welcome = { id: Date.now().toString(), title: 'Welcome', content: '# Hello\n\nStart writing here.' };
-                await saveNote(welcome);
-                await refreshNoteList();
-                notes.push(welcome);
-            }
-            for (let i = 0; i < 3 && i < notes.length; i++) {
-                await openNoteInPane(i, notes[i].id);
-            }
-            const newNoteBtn = document.getElementById('new-note-btn');
-            if (newNoteBtn) {
-                newNoteBtn.addEventListener('click', createNewNote);
-    }
-        });
-
-        async function refreshNoteList() {
-            const notes = await getAllNotes();
-            notes.sort((a, b) => b.updatedAt - a.updatedAt);
-            const sidebarUl = document.getElementById('note-list');
-            if (!sidebarUl) return;
-            sidebarUl.innerHTML = '';
-            for (const note of notes) {
-                const li = document.createElement('li');
-                li.textContent = note.title;
-                li.style.cursor = 'pointer';
-                li.addEventListener('click', () => {
-                    let paneIndex = activePaneNotes.findIndex(id => id === null);
-                    if (paneIndex === -1) paneIndex = 0;
-                    openNoteInPane(paneIndex, note.id);
-                });
-                const delBtn = document.createElement('span');
-                delBtn.textContent = ' ❌';
-                delBtn.style.marginLeft = '10px';
-                delBtn.style.cursor = 'pointer';
-                delBtn.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    if (confirm(`Delete "${note.title}"?`)) {
-                        await deleteNote(note.id);
-                        for (let i = 0; i < activePaneNotes.length; i++) {
-                            if (activePaneNotes[i] === note.id) {
-                                activePaneNotes[i] = null;
-                                const pane = document.querySelector(`.pane[data-pane="${i}"]`);
-                                if (pane) {
-                                    const titleDiv = pane.querySelector('.note-title');
-                                    const textarea = pane.querySelector('textarea');
-                                    if (titleDiv) titleDiv.textContent = '[Empty]';
-                                    if (textarea) textarea.value = '';
-                                }
-                            }
-                        }
-                        await refreshNoteList();
-                    }
-                });
-                li.appendChild(delBtn);
-                sidebarUl.appendChild(li);
-            }
         }
+
+        // Open first notes in panes
+        const currentNotes = await getAllNotes();
+        for (let i = 0; i < 3 && i < currentNotes.length; i++) {
+            await openNoteInPane(i, currentNotes[i].id);
+        }
+
+        // New Note button
+        const newNoteBtn = document.getElementById('new-note-btn');
+        if (newNoteBtn) {
+            newNoteBtn.addEventListener('click', createNewNote);
+        }
+    });
+
+     async function refreshNoteList() {
+        const notes = await getAllNotes();
+        notes.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        const sidebarUl = document.getElementById('note-list');
+        if (!sidebarUl) return;
+        sidebarUl.innerHTML = '';
+
+        for (const note of notes) {
+            const li = document.createElement('li');
+            li.textContent = note.title || 'Untitled';
+            li.style.cursor = 'pointer';
+
+            li.addEventListener('click', () => {
+                let paneIndex = activePaneNotes.findIndex(id => id === null);
+                if (paneIndex === -1) paneIndex = 0;
+                openNoteInPane(paneIndex, note.id);
+            });
+
+            // Delete button
+            const delBtn = document.createElement('span');
+            delBtn.textContent = ' ❌';
+            delBtn.style.marginLeft = '10px';
+            delBtn.style.cursor = 'pointer';
+            delBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                if (confirm(`Delete "${note.title}"?`)) {
+                    await deleteNote(note.id);
+                    await refreshNoteList();
+                }
+            });
+
+            li.appendChild(delBtn);
+            sidebarUl.appendChild(li);
+        }
+    }
+
+    async function openNoteInPane(paneIndex, noteId) {
+        const note = await getNote(noteId);
+        if (!note) return;
+
+        activePaneNotes[paneIndex] = noteId;
+        const pane = document.querySelector(`.pane[data-pane="${paneIndex}"]`);
+        if (!pane) return;
+
+        const titleElem = pane.querySelector('.note-title');
+        const textarea = pane.querySelector('textarea');
+        if (titleElem) titleElem.textContent = note.title || 'Untitled';
+        if (textarea) {
+            textarea.value = note.content || '';
+            setupAutoSave(textarea, noteId);
+        }
+    }
+
+    function setupAutoSave(textareaElement, noteId) {
+        let timeout;
+        textareaElement.oninput = () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(async () => {
+                const note = await getNote(noteId);
+                if (note) {
+                    note.content = textareaElement.value;
+                    await saveNote(note);
+                }
+            }, 500);
+        };
+    }
+
+    async function createNewNote() {
+        const newId = Date.now().toString();
+        const newNote = { 
+            id: newId, 
+            title: 'Untitled', 
+            content: '' 
+        };
+        await saveNote(newNote);
+        await refreshNoteList();
+        
+        const emptyIndex = activePaneNotes.findIndex(id => id === null);
+        const target = emptyIndex !== -1 ? emptyIndex : 0;
+        await openNoteInPane(target, newId);
+    }
+
+    // Extra safety
+    window.createNewNote = createNewNote;
+</script>
 
         async function openNoteInPane(paneIndex, noteId) {
             const note = await getNote(noteId);
