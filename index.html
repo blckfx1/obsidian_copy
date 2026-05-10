@@ -3,32 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Trilium · triple wiki</title>
+    <title>Obsidian Copy • Triple Pane</title>
     <style>
-        /* ---------- DARK THEME ---------- */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             background: #1e1e1e;
             color: #d4d4d4;
-            font-family: 'Segoe UI', system-ui, -apple-system, 'SF Mono', monospace;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             height: 100vh;
             overflow: hidden;
         }
-
-        /* App container – grid layout */
         .app {
             display: grid;
             grid-template-columns: 260px 1fr;
             grid-template-rows: 48px 1fr;
             height: 100vh;
         }
-
-        /* Header */
         .header {
             grid-column: 2 / 3;
             grid-row: 1;
@@ -37,17 +27,8 @@
             display: flex;
             align-items: center;
             padding: 0 20px;
-            gap: 20px;
             font-weight: 500;
         }
-
-        .header h1 {
-            font-size: 1.2rem;
-            font-weight: 500;
-            color: #cccccc;
-        }
-
-        /* Sidebar */
         .sidebar {
             grid-row: 1 / 3;
             grid-column: 1;
@@ -59,49 +40,34 @@
             flex-direction: column;
             gap: 12px;
         }
-
         #new-note-btn {
             background: #0e639c;
             border: none;
             color: white;
-            padding: 8px 12px;
+            padding: 10px 12px;
             border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
-            font-size: 0.9rem;
-            transition: background 0.2s;
             width: 100%;
         }
-
-        #new-note-btn:hover {
-            background: #1177bb;
-        }
-
+        #new-note-btn:hover { background: #1177bb; }
         #note-list {
             list-style: none;
             display: flex;
             flex-direction: column;
             gap: 4px;
         }
-
         #note-list li {
             background: #2d2d30;
-            margin: 2px 0;
             padding: 8px 12px;
             border-radius: 6px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             cursor: pointer;
-            transition: background 0.2s;
             font-size: 0.9rem;
         }
-
-        #note-list li:hover {
-            background: #3e3e42;
-        }
-
-        /* Panels container */
+        #note-list li:hover { background: #3e3e42; }
         .panes-container {
             grid-row: 2;
             grid-column: 2;
@@ -111,25 +77,21 @@
             background: #3e3e42;
             overflow: hidden;
         }
-
-        /* Individual pane */
         .pane {
             background: #1e1e1e;
             display: flex;
             flex-direction: column;
             overflow: hidden;
         }
-
         .note-title {
             background: #2d2d30;
             padding: 10px 12px;
             font-weight: 600;
             border-bottom: 1px solid #3e3e42;
-            font-size: 0.95rem;
             white-space: nowrap;
-            overflow-x: auto;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-
         textarea {
             width: 100%;
             flex: 1;
@@ -137,218 +99,178 @@
             color: #d4d4d4;
             border: none;
             padding: 16px;
-            font-family: 'SF Mono', 'Courier New', monospace;
+            font-family: 'SF Mono', monospace;
             font-size: 14px;
-            line-height: 1.5;
+            line-height: 1.6;
             resize: none;
             outline: none;
         }
-
-        textarea:focus {
-            background: #252526;
-        }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #1e1e1e;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #3e3e42;
-            border-radius: 4px;
-        }
+        textarea:focus { background: #252526; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-thumb { background: #3e3e42; border-radius: 4px; }
     </style>
+
     <script type="module">
-     import { initDB, getAllNotes, getNote, saveNote, deleteNote } from './db.js';
+        import { initDB, getAllNotes, getNote, saveNote, deleteNote } from './db.js';
 
-     let activePaneNotes = [null, null, null];
- 
-     window.addEventListener('DOMContentLoaded', async () => {
-        await initDB();
-        await refreshNoteList();
+        let activePaneNotes = [null, null, null];
 
-        const notes = await getAllNotes();
-        if (notes.length === 0) {
-            const welcome = { 
-                id: Date.now().toString(), 
-                title: 'Welcome', 
-                content: '# Hello\n\nStart writing here.' 
-            };
-            await saveNote(welcome);
-            await refreshNoteList();
-        }
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await initDB();
+                console.log("✅ Database initialized");
 
-        // Open first notes in panes
-        const currentNotes = await getAllNotes();
-        for (let i = 0; i < 3 && i < currentNotes.length; i++) {
-            await openNoteInPane(i, currentNotes[i].id);
-        }
+                await refreshNoteList();
 
-        // New Note button
-        const newNoteBtn = document.getElementById('new-note-btn');
-        if (newNoteBtn) {
-            newNoteBtn.addEventListener('click', createNewNote);
-        }
-    });
-
-     async function refreshNoteList() {
-        const notes = await getAllNotes();
-        notes.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-        const sidebarUl = document.getElementById('note-list');
-        if (!sidebarUl) return;
-        sidebarUl.innerHTML = '';
-
-        for (const note of notes) {
-            const li = document.createElement('li');
-            li.textContent = note.title || 'Untitled';
-            li.style.cursor = 'pointer';
-
-            li.addEventListener('click', () => {
-                let paneIndex = activePaneNotes.findIndex(id => id === null);
-                if (paneIndex === -1) paneIndex = 0;
-                openNoteInPane(paneIndex, note.id);
-            });
-
-            // Delete button
-            const delBtn = document.createElement('span');
-            delBtn.textContent = ' ❌';
-            delBtn.style.marginLeft = '10px';
-            delBtn.style.cursor = 'pointer';
-            delBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                if (confirm(`Delete "${note.title}"?`)) {
-                    await deleteNote(note.id);
+                // Create welcome note if empty
+                let notes = await getAllNotes();
+                if (notes.length === 0) {
+                    const welcome = {
+                        id: Date.now().toString(),
+                        title: "Welcome to Obsidian Copy",
+                        content: "# Welcome!\n\nClick **+ New Note** to start writing."
+                    };
+                    await saveNote(welcome);
                     await refreshNoteList();
                 }
-            });
 
-            li.appendChild(delBtn);
-            sidebarUl.appendChild(li);
-        }
-    }
-
-    async function openNoteInPane(paneIndex, noteId) {
-        const note = await getNote(noteId);
-        if (!note) return;
-
-        activePaneNotes[paneIndex] = noteId;
-        const pane = document.querySelector(`.pane[data-pane="${paneIndex}"]`);
-        if (!pane) return;
-
-        const titleElem = pane.querySelector('.note-title');
-        const textarea = pane.querySelector('textarea');
-        if (titleElem) titleElem.textContent = note.title || 'Untitled';
-        if (textarea) {
-            textarea.value = note.content || '';
-            setupAutoSave(textarea, noteId);
-        }
-    }
-
-    function setupAutoSave(textareaElement, noteId) {
-        let timeout;
-        textareaElement.oninput = () => {
-            clearTimeout(timeout);
-            timeout = setTimeout(async () => {
-                const note = await getNote(noteId);
-                if (note) {
-                    note.content = textareaElement.value;
-                    await saveNote(note);
+                // Open notes in panes
+                notes = await getAllNotes();
+                for (let i = 0; i < 3; i++) {
+                    if (notes[i]) {
+                        await openNoteInPane(i, notes[i].id);
+                    }
                 }
-            }, 500);
-        };
-    }
 
-    async function createNewNote() {
-        const newId = Date.now().toString();
-        const newNote = { 
-            id: newId, 
-            title: 'Untitled', 
-            content: '' 
-        };
-        await saveNote(newNote);
-        await refreshNoteList();
-        
-        const emptyIndex = activePaneNotes.findIndex(id => id === null);
-        const target = emptyIndex !== -1 ? emptyIndex : 0;
-        await openNoteInPane(target, newId);
-    }
+                // New Note button
+                const newNoteBtn = document.getElementById('new-note-btn');
+                if (newNoteBtn) {
+                    newNoteBtn.addEventListener('click', createNewNote);
+                    console.log("✅ New Note button listener added");
+                }
+            } catch (err) {
+                console.error("❌ Error during initialization:", err);
+            }
+        });
 
-    // Extra safety
-    window.createNewNote = createNewNote;
-</script>
+        async function refreshNoteList() {
+            const notes = await getAllNotes();
+            notes.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+            const ul = document.getElementById('note-list');
+            if (!ul) return;
+            ul.innerHTML = '';
+
+            for (const note of notes) {
+                const li = document.createElement('li');
+                li.textContent = note.title || 'Untitled';
+                li.style.cursor = 'pointer';
+
+                li.addEventListener('click', () => {
+                    const emptyIndex = activePaneNotes.findIndex(id => id === null);
+                    const target = emptyIndex !== -1 ? emptyIndex : 0;
+                    openNoteInPane(target, note.id);
+                });
+
+                // Delete button
+                const del = document.createElement('span');
+                del.textContent = ' ❌';
+                del.style.marginLeft = 'auto';
+                del.style.cursor = 'pointer';
+                del.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (confirm(`Delete "${note.title}"?`)) {
+                        await deleteNote(note.id);
+                        await refreshNoteList();
+                    }
+                });
+
+                li.appendChild(del);
+                ul.appendChild(li);
+            }
+        }
 
         async function openNoteInPane(paneIndex, noteId) {
             const note = await getNote(noteId);
             if (!note) return;
+
             activePaneNotes[paneIndex] = noteId;
+
             const pane = document.querySelector(`.pane[data-pane="${paneIndex}"]`);
             if (!pane) return;
-            const titleElem = pane.querySelector('.note-title');
+
+            const titleEl = pane.querySelector('.note-title');
             const textarea = pane.querySelector('textarea');
-            if (titleElem) titleElem.textContent = note.title;
+
+            if (titleEl) titleEl.textContent = note.title || 'Untitled';
             if (textarea) {
-                textarea.value = note.content;
+                textarea.value = note.content || '';
                 setupAutoSave(textarea, noteId);
             }
         }
 
-        function setupAutoSave(textareaElement, noteId) {
+        function setupAutoSave(textarea, noteId) {
             let timeout;
-            const handler = () => {
+            // Remove old listeners first
+            textarea.oninput = null;
+
+            textarea.oninput = async () => {
                 clearTimeout(timeout);
                 timeout = setTimeout(async () => {
                     const note = await getNote(noteId);
                     if (note) {
-                        note.content = textareaElement.value;
+                        note.content = textarea.value;
                         await saveNote(note);
-                        console.log(`Auto-saved "${note.title}"`);
                     }
-                }, 500);
+                }, 600);
             };
-            textareaElement.addEventListener('input', handler);
         }
 
         async function createNewNote() {
-            const newId = Date.now().toString();
-            const newNote = { id: newId, title: 'Untitled', content: '' };
+            const newId = 'note-' + Date.now();
+            const newNote = {
+                id: newId,
+                title: "Untitled Note",
+                content: ""
+            };
+
             await saveNote(newNote);
             await refreshNoteList();
+
             const emptyIndex = activePaneNotes.findIndex(id => id === null);
-            const target = emptyIndex !== -1 ? emptyIndex : 0;
-            await openNoteInPane(target, newId);
+            const targetPane = emptyIndex !== -1 ? emptyIndex : 0;
+
+            await openNoteInPane(targetPane, newId);
+            console.log("✅ New note created and opened in pane", targetPane);
         }
 
+        // Safety backup
         window.createNewNote = createNewNote;
-        document.getElementById('new-note-btn')?.addEventListener('click', createNewNote);
     </script>
 </head>
 <body>
-<div class="app">
-    <div class="header">
-        <h1>◈ Trilium · triple wiki</h1>
-        <span style="font-size:0.8rem; color:#888;">⚡ auto-save · [[wiki-links]]</span>
-    </div>
-    <div class="sidebar">
-        <button id="new-note-btn">+ New Note</button>
-        <ul id="note-list"></ul>
-    </div>
-    <div class="panes-container">
-        <div class="pane" data-pane="0">
-            <div class="note-title">Untitled</div>
-            <textarea placeholder="Write note 1"></textarea>
+    <div class="app">
+        <div class="header">
+            <h1>◈ Obsidian Copy • Triple Pane</h1>
         </div>
-        <div class="pane" data-pane="1">
-            <div class="note-title">Untitled</div>
-            <textarea placeholder="Write note 2"></textarea>
+        <div class="sidebar">
+            <button id="new-note-btn">+ New Note</button>
+            <ul id="note-list"></ul>
         </div>
-        <div class="pane" data-pane="2">
-            <div class="note-title">Untitled</div>
-            <textarea placeholder="Write note 3"></textarea>
+        <div class="panes-container">
+            <div class="pane" data-pane="0">
+                <div class="note-title">Untitled</div>
+                <textarea placeholder="Write here..."></textarea>
+            </div>
+            <div class="pane" data-pane="1">
+                <div class="note-title">Untitled</div>
+                <textarea placeholder="Write here..."></textarea>
+            </div>
+            <div class="pane" data-pane="2">
+                <div class="note-title">Untitled</div>
+                <textarea placeholder="Write here..."></textarea>
+            </div>
         </div>
     </div>
-</div>
 </body>
 </html>
