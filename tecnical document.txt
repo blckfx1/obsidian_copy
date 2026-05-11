@@ -1,229 +1,123 @@
-1. Core Features (Minimum Viable Product)
-Feature	Description
-Dark design	Dark background, light text, minimal UI
-Three‑pane layout	Three resizable/scrollable note editors open at once
-Note manager	Create, rename, delete notes – left sidebar lists all note titles
-Wiki‑links	[[Note Title]] syntax – clickable, automatically creates/linked notes
-Search	Full‑text search over note titles + content; results clickable
-Persistence	All notes saved automatically in browser’s IndexedDB
-Many notes	IndexedDB can handle thousands of notes (>10k is fine)
-2. Technology Stack (Simple & No Build Step)
-HTML5 – structure
+✅ Technical Document – Simple Obsidian-like App
+Project Name: MiniVault (or whatever you like)
+1. Project Overview
+A minimal, fast, native Windows 10 desktop app that works with real Markdown files and folders (just like Obsidian).
 
-CSS3 – dark theme, flex/grid for panes
+Single .exe file
+No Electron / HTML / web tech
+Uses your existing folders as “vaults”
+Minimal UI (very clean and lightweight)
 
-Vanilla JavaScript (ES6) – no frameworks, easier to customise
+2. Chosen Features (MVP)
 
-IndexedDB (via idb wrapper or native API) – local database
+Markdown editor with live preview
+File explorer sidebar (folder tree)
+Wiki-style [[internal links]] (click to open)
+Tags / Search (simple full-text + tag search)
+Daily Notes (one-click today’s note)
+Works directly with real .md files and folders
 
-LocalStorage – only for user preferences (e.g. last opened notes)
+3. Recommended Tech Stack
 
-Why no React/Vue? You wanted “from scratch” – vanilla gives you total control and is easier to debug for a small project.
 
-3. Data Model (IndexedDB Schema)
-We’ll create one object store: notes
 
-Field	Type	Description
-id	string	Unique ID (e.g. timestamp + slug)
-title	string	Note title (used in [[title]])
-content	string	Markdown/plain text
-updatedAt	number	Timestamp for sorting
-Indexes: title (unique), updatedAt
 
-4. User Interface Design (Dark Theme)
-text
-+--------------------------------------------------+
-|  Header: App name + Search bar                  |
-+--------+---------------------+------------------+
-|        |                     |                  |
-| Note   | Note A (active)      | Note B           |
-| List   |                     |                  |
-|        | [editable textarea]  | [editable textarea]|
-| - Note1|                     |                  |
-| - Note2|                     |                  |
-| - Note3|                     |                  |
-|        +---------------------+------------------+
-|        | Note C (third pane)  |                  |
-| +New   | [editable textarea]  |                  |
-|        |                     |                  |
-+--------+---------------------+------------------+
-Left panel – list of all notes (+ “New note” button)
 
-Right three panels – three independent textareas, each showing a different note.
 
-Resize panels with CSS grid and resize: horizontal (optional).
 
-Search results – dropdown or overlay below search bar.
 
-“Open three notes” – we interpret as up to three editors visible at once.
-If you later want tabs, you can extend; this direct multi‑pane is simpler.
 
-5. Step‑by‑Step Development Plan
-Phase 0: Project Setup (5 minutes)
-Create a folder with three files:
 
-text
-obsidian-clone/
-├── index.html
-├── styles.css
-└── script.js
-Open index.html in your browser – no server needed.
 
-Phase 1: Static UI & Dark Theme (1 hour)
-Build the 3‑pane layout with CSS Grid.
 
-Apply dark background (#1e1e1e), light text (#d4d4d4), monospace font.
 
-Make each pane a <div> containing a <textarea> and a <div> for note title.
 
-Add a left sidebar with a dummy list of notes.
 
-Phase 2: IndexedDB Setup & Note CRUD (2–3 hours)
-Write db.js module to open database, create store, and handle promises.
 
-Implement functions:
 
-getAllNotes() → array of {id, title, updatedAt}
 
-saveNote(note) → upsert by id
 
-deleteNote(id)
 
-getNote(id)
 
-Auto‑save on textarea input events (debounced).
 
-When you create a new note, assign a unique ID and default title “Untitled”.
 
-Phase 3: Note List & Three Pane Management (2 hours)
-On page load, load all notes into left sidebar (sorted by updatedAt).
 
-Each note in sidebar has: title, edit icon, delete icon.
 
-User can click a note title → open it in the first empty pane (or replace the least recently used pane).
 
-Keep track of which pane is showing which note ID.
 
-When you edit a pane’s textarea, update that note’s content in DB.
 
-Phase 4: Wiki‑Link Parsing & Navigation (2 hours)
-Detect [[...]] inside note content.
 
-When a pane’s content changes, scan for links and replace them with <span class="wikilink">[[...]]</span> + click handler.
 
-On click, extract the link target title, search for a note with that title, and open it in another pane (or create it if not exists).
 
-Create‑on‑click: if note doesn’t exist, create a new empty note with that title and open it.
 
-Implementation tip: store note titles in Map for quick lookup. When rendering a pane, convert text with regex:
-content.replace(/\[\[(.*?)\]\]/g, '<span class="wikilink" data-title="$1">[[$1]]</span>').
 
-Phase 5: Search Engine (2 hours)
-Add search input in header.
 
-On each keystroke, filter notes using two strategies:
 
-Quick: search note titles for substring.
+PartTechnologyReasonLanguagePython 3.11+Much faster development, excellent Markdown libsGUI FrameworkDear PyGui (or PyQt6 if you prefer)Dear PyGui = very fast, modern, minimal, single exe easyMarkdown Renderingmarkdown + markdown2 or WeasyPrint / customLive previewSingle ExecutablePyInstaller (--onefile)True single .exeAlternativeC++ + Dear ImGuiOnly if you want maximum speed & tiny size later
+Recommendation: Start with Python + Dear PyGui.
+You said you know both C++ and Python — Python will let you finish the app 3–5× faster while still getting a native feel.
+4. Project Folder Structure
+textMiniVault/
+├── main.py                 # Entry point
+├── core/
+│   ├── vault.py            # Folder handling, file watching
+│   ├── note.py             # Note class (title, path, content, tags)
+│   ├── parser.py           # Markdown + [[wiki links]] parser
+│   └── search.py
+├── ui/
+│   ├── main_window.py
+│   ├── sidebar.py          # File tree
+│   ├── editor.py
+│   └── preview.py
+├── utils/
+│   ├── daily.py
+│   └── config.py
+├── data/
+│   └── config.ini          # Last vault path, theme, etc.
+├── requirements.txt
+└── build.bat               # Build single exe
+5. How Core Features Work
+Live Preview + Wiki Links
 
-Full‑text: iterate over all notes and check content.includes(query).
-(For many notes, add a simple index later, but with 1000 notes modern browsers handle this fine.)
+Use markdown library to convert to HTML
+Render HTML in a Dear PyGui child window or use a simple custom renderer
+Regex to detect [[Note Name]] → turn into clickable links
 
-Display results as a dropdown list under search bar.
+File Explorer
 
-Click a result → open that note in a pane.
+Use os.walk + Dear PyGui tree node
+Double-click opens note
 
-Phase 6: Polish & Edge Cases (1–2 hours)
-Debounce DB writes (500ms) to reduce I/O.
+Daily Notes
 
-Delete confirmation before removing a note.
+Button → creates Daily Notes/2025-05-10.md automatically
 
-When you rename a note (by editing its title in the pane header), update all [[oldTitle]] links to [[newTitle]] in other notes (optional – start with simple update).
+Search
 
-Ensure you can’t open the same note in two panes at once (disable or sync).
+Simple full-text search across all .md files using whoosh or just pathlib + string search
 
-Add keyboard shortcuts: Ctrl+N new note, Ctrl+S save (auto-save anyway).
+Single Executable
+Bashpyinstaller --onefile --windowed --icon=app.ico --name MiniVault main.py
+6. Step-by-Step Development Plan
+Phase 1 (1–2 days)
 
-Responsive: collapse panes on small screens (optional).
+Create project + Dear PyGui window (minimal layout: left sidebar + editor + preview)
+Open folder dialog → set as vault
 
-6. Key Code Snippets (to get you started)
-IndexedDB wrapper (simplified)
-javascript
-// db.js
-const DB_NAME = 'ObsidianClone';
-const STORE_NAME = 'notes';
+Phase 2 (2–3 days)
 
-let db = null;
+File tree sidebar
+Open, save, create new .md files
 
-export async function initDB() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
-    request.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-        store.createIndex('title', 'title', { unique: true });
-        store.createIndex('updatedAt', 'updatedAt');
-      }
-    };
-    request.onsuccess = () => { db = request.result; resolve(db); };
-    request.onerror = () => reject(request.error);
-  });
-}
+Phase 3 (2–3 days)
 
-export async function getAllNotes() {
-  const tx = db.transaction(STORE_NAME, 'readonly');
-  return tx.objectStore(STORE_NAME).getAll();
-}
+Markdown editor + live preview
+[[Wiki link]] support
 
-export async function saveNote(note) {
-  note.updatedAt = Date.now();
-  const tx = db.transaction(STORE_NAME, 'readwrite');
-  return tx.objectStore(STORE_NAME).put(note);
-}
-Link rendering (in a pane)
-javascript
-function renderLinks(content, targetPaneId) {
-  const linkedHTML = content.replace(/\[\[(.*?)\]\]/g, (match, title) => {
-    return `<span class="wikilink" data-title="${escapeHtml(title)}">[[${escapeHtml(title)}]]</span>`;
-  });
-  document.getElementById(targetPaneId).innerHTML = linkedHTML;
-  // attach click listeners to .wikilink
-}
-Search (naive full‑text)
-javascript
-async function searchNotes(query) {
-  const all = await getAllNotes();
-  return all.filter(n => n.title.includes(query) || n.content.includes(query));
-}
-7. Possible Extensions (after MVP)
-Markdown support – use marked.js or simple renderer.
+Phase 4 (1–2 days)
 
-Graph view – visualise note links (canvas).
+Daily notes + basic search + tags
 
-Tags – #tag syntax.
+Phase 5
 
-Sync across devices – export/import JSON or use remote API.
-
-Electron wrapper – turn into a native desktop app.
-
-8. Estimated effort (for one developer)
-Phase	Time (hours)
-UI layout & dark theme	1
-IndexedDB + CRUD	2–3
-Note list + 3 panes	2
-Wiki‑links & navigation	2
-Search engine	1–2
-Polish & bug fixes	1–2
-Total	9–12 hours
-This is very doable in a weekend or a few evenings.
-
-Next Actions for You
-Create the three files and build the static layout.
-
-Implement IndexedDB – test saving/loading a dummy note.
-
-Add the three panes – bind each to a separate note ID.
-
-Parse [[links]] – start with simple regex and click navigation.
-
-Add search – then iterate on design.
+Build single .exe + testing
