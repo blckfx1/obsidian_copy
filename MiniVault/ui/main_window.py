@@ -110,16 +110,35 @@ def _refresh_file_tree(self):
 # --------------------------------------------------------------
 
     def _build_tree(self, directory: Path, parent):
-        for item in sorted(directory.iterdir()):
-            if item.is_dir() and item.name != "__pycache__":
-                node = dpg.add_tree_node(label=item.name, parent=parent)
-                self._build_tree(item, node)
-            elif item.suffix.lower() == ".md":
-                dpg.add_selectable(
-                    label=item.name,
-                    parent=parent,
-                    callback=lambda s, a, u=item: self._open_note(u)
-                )
+        """Build file tree safely"""
+        if not directory.exists() or not directory.is_dir():
+            print(f"⚠️ Not a valid directory: {directory}")
+            return
+
+        try:
+            items = sorted(directory.iterdir(), key=lambda x: (x.is_file(), x.name.lower()))
+            
+            for item in items:
+                if item.is_dir() and item.name not in ("__pycache__", ".git", "venv"):
+                    # Create folder node
+                    node = dpg.add_tree_node(
+                        label=f"📁 {item.name}", 
+                        parent=parent,
+                        default_open=item.name in ("Daily Notes", "")  # open root
+                    )
+                    self._build_tree(item, node)   # recursive
+
+                elif item.suffix.lower() == ".md":
+                    # Add file
+                    dpg.add_selectable(
+                        label=f"📄 {item.name}",
+                        parent=parent,
+                        callback=lambda s, a, u=item: self._open_note(u)
+                    )
+        except Exception as e:
+            print(f"❌ Error building tree in {directory}: {e}")
+
+# --------------------------------------------------------------
 
     def _open_note(self, path: Path):
         self.current_note_path = path
