@@ -54,23 +54,28 @@ class MiniVaultWindow:
                             )
 
 # -------------------------------------------------------
-
     def _show_open_vault_dialog(self):
         def callback(sender, app_data):
             try:
-                # Safe way to get the path
-                folder = app_data.get('file_path_name') or app_data.get('current_path', '')
-                print(f"✅ Selected: {folder}")
+                # More safe path extraction for Cyrillic usernames
+                folder = None
+                if isinstance(app_data, dict):
+                    folder = app_data.get('file_path_name') or app_data.get('current_path')
+                
+                print(f"✅ Selected raw: {folder}")
 
                 if folder:
-                    self.vault.set_path(str(folder))      # force string
+                    folder_str = str(folder)  # force string
+                    print(f"✅ Using path: {folder_str}")
+                    
+                    self.vault.set_path(folder_str)
                     dpg.delete_item("open_vault_dialog")
                     self._refresh_file_tree()
                     print("✅ Vault opened successfully!")
                 else:
-                    print("⚠️ No path received")
+                    print("⚠️ No folder received from dialog")
             except Exception as e:
-                print(f"❌ CRASH in callback: {e}")
+                print(f"❌ ERROR in vault callback: {e}")
                 import traceback
                 traceback.print_exc()
 
@@ -80,7 +85,8 @@ class MiniVaultWindow:
             tag="open_vault_dialog",
             callback=callback,
             width=900,
-            height=700
+            height=700,
+            default_path="C:\\Users"   # Start from Users folder to reduce Cyrillic issues
         ):
             pass
 # ---------------------------------------------------------------
@@ -88,11 +94,20 @@ class MiniVaultWindow:
     def _open_vault(self, sender=None, app_data=None):
         self._show_open_vault_dialog()
 
-    def _refresh_file_tree(self):
+# -------------------------------------------------------------
+
+def _refresh_file_tree(self):
         if not self.vault.is_valid():
+            print("❌ Vault not valid")
             return
-        dpg.delete_item(self.tree, children_only=True)
-        self._build_tree(self.vault.path, self.tree)
+        try:
+            dpg.delete_item(self.tree, children_only=True)
+            self._build_tree(self.vault.path, self.tree)
+            print("✅ File tree refreshed")
+        except Exception as e:
+            print(f"❌ Tree error: {e}")
+
+# --------------------------------------------------------------
 
     def _build_tree(self, directory: Path, parent):
         for item in sorted(directory.iterdir()):
